@@ -38,11 +38,10 @@ async function connectDB() {
 
 // ─── Health check ──────────────────────────────────────────────────────────────
 // GET /api  →  { ok: true }
-app.get('/', (req, res) => res.json({ ok: true, service: 'BabuPS API' }));
+app.get('/api', (req, res) => res.json({ ok: true, service: 'BabuPS API' }));
 
 // ─── GET all loans ─────────────────────────────────────────────────────────────
-// Vercel mounts this file at /api, so the route inside is /loans (not /api/loans)
-app.get('/loans', async (req, res) => {
+app.get('/api/loans', async (req, res) => {
   try {
     await connectDB();
     const loans = await db.collection('loans').find({}).sort({ dateGiven: -1 }).toArray();
@@ -54,7 +53,7 @@ app.get('/loans', async (req, res) => {
 });
 
 // ─── POST create loan ──────────────────────────────────────────────────────────
-app.post('/loans', async (req, res) => {
+app.post('/api/loans', async (req, res) => {
   try {
     await connectDB();
     const loan   = sanitizeLoan(req.body);
@@ -68,7 +67,7 @@ app.post('/loans', async (req, res) => {
 });
 
 // ─── PUT update loan ───────────────────────────────────────────────────────────
-app.put('/loans/:id', async (req, res) => {
+app.put('/api/loans/:id', async (req, res) => {
   try {
     await connectDB();
     const id     = new ObjectId(req.params.id);
@@ -84,7 +83,7 @@ app.put('/loans/:id', async (req, res) => {
 });
 
 // ─── PUT close loan ────────────────────────────────────────────────────────────
-app.put('/loans/:id/close', async (req, res) => {
+app.put('/api/loans/:id/close', async (req, res) => {
   try {
     await connectDB();
     const id  = new ObjectId(req.params.id);
@@ -102,7 +101,7 @@ app.put('/loans/:id/close', async (req, res) => {
 });
 
 // ─── DELETE loan ───────────────────────────────────────────────────────────────
-app.delete('/loans/:id', async (req, res) => {
+app.delete('/api/loans/:id', async (req, res) => {
   try {
     await connectDB();
     const id = new ObjectId(req.params.id);
