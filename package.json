@@ -2,10 +2,13 @@
   "name": "babu-pawn-shop",
   "version": "1.0.0",
   "description": "Babu Pawn Shop Management System with MongoDB Atlas",
-  "main": "server.js",
+  "main": "api/index.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node api/index.js",
     "migrate": "node migrate.js"
+  },
+  "engines": {
+    "node": "20.x"
   },
   "dependencies": {
     "cors": "^2.8.5",

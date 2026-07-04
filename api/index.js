@@ -2,34 +2,30 @@ require('dotenv').config();
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
 const cors = require('cors');
-const path = require('path');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
 
 const MONGO_URI = process.env.MONGO_URI;
 const DB_NAME = process.env.DB_NAME || 'pawnshop';
-const PORT = process.env.PORT || 3000;
 
 let db;
+let client;
 
 async function connectDB() {
-  const client = new MongoClient(MONGO_URI);
+  if (db) return db; // reuse existing connection (serverless warm starts)
+  client = new MongoClient(MONGO_URI);
   await client.connect();
   db = client.db(DB_NAME);
   console.log('✅ Connected to MongoDB Atlas —', DB_NAME);
+  return db;
 }
-
-// Serve index.html from root
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
 
 // ─── GET all loans ────────────────────────────────────────────────────────────
 app.get('/api/loans', async (req, res) => {
   try {
+    await connectDB();
     const loans = await db.collection('loans').find({}).sort({ dateGiven: -1 }).toArray();
     res.json(loans);
   } catch (err) {
@@ -41,6 +37,7 @@ app.get('/api/loans', async (req, res) => {
 // ─── POST create loan ─────────────────────────────────────────────────────────
 app.post('/api/loans', async (req, res) => {
   try {
+    await connectDB();
     const loan = sanitizeLoan(req.body);
     const result = await db.collection('loans').insertOne(loan);
     const created = await db.collection('loans').findOne({ _id: result.insertedId });
@@ -54,6 +51,7 @@ app.post('/api/loans', async (req, res) => {
 // ─── PUT update loan ──────────────────────────────────────────────────────────
 app.put('/api/loans/:id', async (req, res) => {
   try {
+    await connectDB();
     const id = new ObjectId(req.params.id);
     const update = sanitizeLoan(req.body);
     delete update._id;
@@ -69,6 +67,7 @@ app.put('/api/loans/:id', async (req, res) => {
 // ─── PUT close loan ───────────────────────────────────────────────────────────
 app.put('/api/loans/:id/close', async (req, res) => {
   try {
+    await connectDB();
     const id = new ObjectId(req.params.id);
     const now = new Date();
     await db.collection('loans').updateOne(
@@ -86,6 +85,7 @@ app.put('/api/loans/:id/close', async (req, res) => {
 // ─── DELETE loan ──────────────────────────────────────────────────────────────
 app.delete('/api/loans/:id', async (req, res) => {
   try {
+    await connectDB();
     const id = new ObjectId(req.params.id);
     await db.collection('loans').deleteOne({ _id: id });
     res.json({ success: true });
@@ -97,25 +97,17 @@ app.delete('/api/loans/:id', async (req, res) => {
 
 function sanitizeLoan(body) {
   const loan = {};
-  if (body.serial !== undefined) loan.serial = body.serial;
-  if (body.name !== undefined) loan.name = body.name;
-  if (body.amount !== undefined) loan.amount = Number(body.amount) || 0;
-  if (body.dateGiven !== undefined) loan.dateGiven = body.dateGiven ? new Date(body.dateGiven) : null;
+  if (body.serial !== undefined)     loan.serial     = body.serial;
+  if (body.name !== undefined)       loan.name       = body.name;
+  if (body.amount !== undefined)     loan.amount     = Number(body.amount) || 0;
+  if (body.dateGiven !== undefined)  loan.dateGiven  = body.dateGiven  ? new Date(body.dateGiven)  : null;
   if (body.dateReturn !== undefined) loan.dateReturn = body.dateReturn ? new Date(body.dateReturn) : null;
-  if (body.status !== undefined) loan.status = body.status;
-  if (body.item !== undefined) loan.item = body.item;
-  if (body.weight !== undefined) loan.weight = Number(body.weight) || 0;
-  if (body.notes !== undefined) loan.notes = body.notes;
+  if (body.status !== undefined)     loan.status     = body.status;
+  if (body.item !== undefined)       loan.item       = body.item;
+  if (body.weight !== undefined)     loan.weight     = Number(body.weight) || 0;
+  if (body.notes !== undefined)      loan.notes      = body.notes;
   return loan;
 }
 
-connectDB()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running at http://localhost:${PORT}`);
-    });
-  })
-  .catch(err => {
-    console.error('❌ Failed to connect to MongoDB:', err.message);
-    process.exit(1);
-  });
+// Export for Vercel serverless
+module.exports = app;
