@@ -10,17 +10,17 @@ app.use(cors());
 app.use(express.json());
 
 const MONGO_URI = process.env.MONGO_URI;
-const DB_NAME = process.env.DB_NAME || 'pawnshop';
+const DB_NAME   = process.env.DB_NAME || 'pawnshop';
 
-let db = null;
+let db     = null;
 let client = null;
 
 async function connectDB() {
-  if (db) return db; // reuse on warm start
+  if (db) return db;
   if (!MONGO_URI) throw new Error('MONGO_URI environment variable is not set');
 
   client = new MongoClient(MONGO_URI, {
-    serverSelectionTimeoutMS: 10000, // fail fast on bad URI / network block
+    serverSelectionTimeoutMS: 10000,
     connectTimeoutMS: 10000,
   });
 
@@ -30,15 +30,19 @@ async function connectDB() {
     console.log('✅ Connected to MongoDB Atlas —', DB_NAME);
     return db;
   } catch (err) {
-    // reset so the next request retries
     db = null;
     client = null;
     throw err;
   }
 }
 
-// ─── GET all loans ────────────────────────────────────────────────────────────
-app.get('/api/loans', async (req, res) => {
+// ─── Health check ──────────────────────────────────────────────────────────────
+// GET /api  →  { ok: true }
+app.get('/', (req, res) => res.json({ ok: true, service: 'BabuPS API' }));
+
+// ─── GET all loans ─────────────────────────────────────────────────────────────
+// Vercel mounts this file at /api, so the route inside is /loans (not /api/loans)
+app.get('/loans', async (req, res) => {
   try {
     await connectDB();
     const loans = await db.collection('loans').find({}).sort({ dateGiven: -1 }).toArray();
@@ -49,11 +53,11 @@ app.get('/api/loans', async (req, res) => {
   }
 });
 
-// ─── POST create loan ─────────────────────────────────────────────────────────
-app.post('/api/loans', async (req, res) => {
+// ─── POST create loan ──────────────────────────────────────────────────────────
+app.post('/loans', async (req, res) => {
   try {
     await connectDB();
-    const loan = sanitizeLoan(req.body);
+    const loan   = sanitizeLoan(req.body);
     const result = await db.collection('loans').insertOne(loan);
     const created = await db.collection('loans').findOne({ _id: result.insertedId });
     res.status(201).json(created);
@@ -63,11 +67,11 @@ app.post('/api/loans', async (req, res) => {
   }
 });
 
-// ─── PUT update loan ──────────────────────────────────────────────────────────
-app.put('/api/loans/:id', async (req, res) => {
+// ─── PUT update loan ───────────────────────────────────────────────────────────
+app.put('/loans/:id', async (req, res) => {
   try {
     await connectDB();
-    const id = new ObjectId(req.params.id);
+    const id     = new ObjectId(req.params.id);
     const update = sanitizeLoan(req.body);
     delete update._id;
     await db.collection('loans').updateOne({ _id: id }, { $set: update });
@@ -79,11 +83,11 @@ app.put('/api/loans/:id', async (req, res) => {
   }
 });
 
-// ─── PUT close loan ───────────────────────────────────────────────────────────
-app.put('/api/loans/:id/close', async (req, res) => {
+// ─── PUT close loan ────────────────────────────────────────────────────────────
+app.put('/loans/:id/close', async (req, res) => {
   try {
     await connectDB();
-    const id = new ObjectId(req.params.id);
+    const id  = new ObjectId(req.params.id);
     const now = new Date();
     await db.collection('loans').updateOne(
       { _id: id },
@@ -97,8 +101,8 @@ app.put('/api/loans/:id/close', async (req, res) => {
   }
 });
 
-// ─── DELETE loan ──────────────────────────────────────────────────────────────
-app.delete('/api/loans/:id', async (req, res) => {
+// ─── DELETE loan ───────────────────────────────────────────────────────────────
+app.delete('/loans/:id', async (req, res) => {
   try {
     await connectDB();
     const id = new ObjectId(req.params.id);
@@ -112,17 +116,16 @@ app.delete('/api/loans/:id', async (req, res) => {
 
 function sanitizeLoan(body) {
   const loan = {};
-  if (body.serial !== undefined)     loan.serial     = body.serial;
-  if (body.name !== undefined)       loan.name       = body.name;
-  if (body.amount !== undefined)     loan.amount     = Number(body.amount) || 0;
-  if (body.dateGiven !== undefined)  loan.dateGiven  = body.dateGiven  ? new Date(body.dateGiven)  : null;
+  if (body.serial     !== undefined) loan.serial     = body.serial;
+  if (body.name       !== undefined) loan.name       = body.name;
+  if (body.amount     !== undefined) loan.amount     = Number(body.amount)  || 0;
+  if (body.dateGiven  !== undefined) loan.dateGiven  = body.dateGiven  ? new Date(body.dateGiven)  : null;
   if (body.dateReturn !== undefined) loan.dateReturn = body.dateReturn ? new Date(body.dateReturn) : null;
-  if (body.status !== undefined)     loan.status     = body.status;
-  if (body.item !== undefined)       loan.item       = body.item;
-  if (body.weight !== undefined)     loan.weight     = Number(body.weight) || 0;
-  if (body.notes !== undefined)      loan.notes      = body.notes;
+  if (body.status     !== undefined) loan.status     = body.status;
+  if (body.item       !== undefined) loan.item       = body.item;
+  if (body.weight     !== undefined) loan.weight     = Number(body.weight)  || 0;
+  if (body.notes      !== undefined) loan.notes      = body.notes;
   return loan;
 }
 
-// Export for Vercel serverless
 module.exports = app;
